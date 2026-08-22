@@ -66,3 +66,9 @@ class ModelPusherConfig:
     bucket_name: str = MODEL_BUCKET_NAME
     # FIXED: Formatted the complete path key pattern for the pusher
     s3_model_key_path: str = os.path.join(MODEL_PUSHER_S3_KEY, MODEL_FILE_NAME).replace("\\", "/")
+    
+@dataclass
+class VehiclePredictorConfig:
+    # FIXED: Added the folder structure path so the prediction pipeline knows where to look
+    model_file_path: str = os.path.join(MODEL_PUSHER_S3_KEY, MODEL_FILE_NAME).replace("\\", "/")
+    model_bucket_name: str = MODEL_BUCKET_NAME

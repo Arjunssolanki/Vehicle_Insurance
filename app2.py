@@ -1,4 +1,5 @@
 import sys
+import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -6,14 +7,17 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.responses import HTMLResponse, RedirectResponse
 from uvicorn import run as app_run
+import boto3
 
 from typing import Optional
 
 # Corrected package names spelling from 'pipline' to 'pipeline'
-from src.constants import APP_HOST, APP_PORT
+from src.constants import APP_HOST, APP_PORT, MODEL_BUCKET_NAME, MODEL_PUSHER_S3_KEY, MODEL_FILE_NAME
 from src.pipline.prediction_pipeline import VehicleData, VehicleDataClassifier
 from src.pipline.training_pipeline import TrainPipeline
+from src.entity.s3_estimator import Proj1Estimator
 from src.exception import MyException
+from src.logger import logging
 
 # Initialize FastAPI application
 app = FastAPI()
@@ -35,6 +39,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Global variable to safely hold your active model tracking engine
+estimator = None
 
 class DataForm:
     """
@@ -76,13 +83,51 @@ class DataForm:
         except Exception as e:
             raise Exception(f"Failed to process and cast numeric form variables: {str(e)}")
 
+
+@app.on_event("startup")
+def load_production_model():
+    """
+    Triggered automatically when the FastAPI server initializes.
+    Ensures LocalStack infrastructure has our bucket and initializes the estimator layer.
+    """
+    global estimator
+    try:
+        # Automated LocalStack bucket verification layer 
+        is_local = os.getenv("IS_LOCAL", "True").lower() == "true"
+        if is_local:
+            logging.info("Startup Check: Verifying LocalStack bucket infrastructure...")
+            s3_client = boto3.client(
+                "s3",
+                endpoint_url="http://localhost:4566",
+                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", "test"),
+                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", "test"),
+                region_name="us-east-1"
+            )
+            # Create the bucket if a Docker reset wiped it out
+            try:
+                s3_client.head_bucket(Bucket=MODEL_BUCKET_NAME)
+                logging.info(f"Verified bucket [{MODEL_BUCKET_NAME}] is already present.")
+            except Exception:
+                logging.info(f"Bucket [{MODEL_BUCKET_NAME}] missing from LocalStack. Auto-generating it now...")
+                s3_client.create_bucket(Bucket=MODEL_BUCKET_NAME)
+
+        # Initialize the global estimator tracking wrapper
+        logging.info("API Startup: Connecting and initializing production model estimator...")
+        s3_model_path = os.path.join(MODEL_PUSHER_S3_KEY, MODEL_FILE_NAME).replace("\\", "/")
+        estimator = Proj1Estimator(bucket_name=MODEL_BUCKET_NAME, model_path=s3_model_path)
+        logging.info("API Startup: Estimator engine loaded successfully.")
+        
+    except Exception as e:
+        logging.error(f"Failed to load the model during server startup initialization: {str(e)}")
+        raise MyException(e, sys)
+
+
 # Route to render the main page with the form
 @app.get("/", tags=["authentication"])
 async def index(request: Request):
     """
     Renders the main HTML form page for vehicle data input.
     """
-    # FIXED: Placed request as the first argument to comply with modern FastAPI/Starlette signatures
     return templates.TemplateResponse(
         request,
         "vehicledata.html",
@@ -135,13 +180,12 @@ async def predictRouteClient(request: Request):
         # Make a prediction and retrieve the result scalar safely
         prediction_result = model_predictor.predict(dataframe=vehicle_df)
         
-        # Check if output is a list/array, extract first index if true
+        # Extract individual prediction value scalar integer (0 or 1)
         value = prediction_result[0] if hasattr(prediction_result, "__getitem__") else prediction_result
 
         # Interpret the prediction result as 'Response-Yes' or 'Response-No'
         status = "Response-Yes" if int(value) == 1 else "Response-No"
 
-        # FIXED: Adjusted argument ordering to match updated framework requirements
         return templates.TemplateResponse(
             request,
             "vehicledata.html",

@@ -65,21 +65,26 @@ class SimpleStorageService:
         except Exception as e:
             raise MyException(e, sys) from e
 
-    def get_file_object(self, filename: str, bucket_name: str) -> Union[List[object], object]:
+    def get_file_object(self, filename: str, bucket_name: str) -> object:
         """
-        Retrieves the file object(s) from the specified bucket based on the filename.
+        Retrieves the exact file object from the specified bucket based on the filename.
         """
         logging.info("Entered the get_file_object method of SimpleStorageService class")
         try:
             bucket = self.get_bucket(bucket_name)
             file_objects = [file_object for file_object in bucket.objects.filter(Prefix=filename)]
-            func = lambda x: x[0] if len(x) == 1 else x
-            file_objs = func(file_objects)
+            
+            if len(file_objects) == 0:
+                raise Exception(f"No file object found in bucket '{bucket_name}' matching path '{filename}'")
+                
+            # FIXED: Extract the raw S3 object item out of the list wrapper explicitly
+            file_obj = file_objects[0]
+            
             logging.info("Exited the get_file_object method of SimpleStorageService class")
-            return file_objs
+            return file_obj
         except Exception as e:
             raise MyException(e, sys) from e
-
+        
     def load_model(self, model_name: str, bucket_name: str, model_dir: str = None) -> object:
         """
         Loads a serialized model from the specified S3 bucket.
