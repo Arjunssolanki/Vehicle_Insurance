@@ -36,16 +36,18 @@ jobs:
           # Start localstack using docker detached mode
           docker run -d --name localstack_testing -p 4566:4566 -p 4510-4559:4510-4559 -e SERVICES=s3 localstack/localstack:latest
 
-          # Smart Health Check: Wait up to 30 seconds until port 4566 actively accepts requests
-          echo "Waiting for LocalStack gateway to start..."
-          for i in {1..30}; do
-            if nc -z 127.0.0.1 4566; then
-              echo "LocalStack port is open and ready!"
+          # API Health Check: Wait up to 45 seconds for a clean HTTP response from the S3 endpoint
+          echo "Waiting for LocalStack API to be fully operational..."
+          for i in {1..45}; do
+            if curl -s -o /dev/null -w "%{http_code}" http://127.0.0 | grep -q "200"; then
+              echo "LocalStack API endpoints are completely healthy and ready!"
               exit 0
             fi
+            echo "Waiting for server startup... ($i/45)"
             sleep 1
           done
-          echo "LocalStack failed to start within 30 seconds"
+          echo "LocalStack API failed to respond within 45 seconds"
+          docker logs localstack_testing
           exit 1
 
       - name: Seed S3 Testing Infrastructure
