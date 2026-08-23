@@ -30,15 +30,23 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install localstack
 
       - name: Start Mock LocalStack Service
         run: |
-          # Start localstack using docker detached mode in pipeline memory background
+          # Start localstack using docker detached mode
           docker run -d --name localstack_testing -p 4566:4566 -p 4510-4559:4510-4559 -e SERVICES=s3 localstack/localstack:latest
 
-          # Give localstack a few seconds to boot up safely
-          sleep 10
+          # Smart Health Check: Wait up to 30 seconds until port 4566 actively accepts requests
+          echo "Waiting for LocalStack gateway to start..."
+          for i in {1..30}; do
+            if nc -z 127.0.0.1 4566; then
+              echo "LocalStack port is open and ready!"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "LocalStack failed to start within 30 seconds"
+          exit 1
 
       - name: Seed S3 Testing Infrastructure
         run: |
