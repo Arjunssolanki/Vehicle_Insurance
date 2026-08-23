@@ -18,7 +18,8 @@ This guide outlines the exact sequence required to spin up the local cloud infra
 Open a brand-new **PowerShell terminal window** and run the following command to strip rogue quotation marks from your Windows `PATH` and activate your virtual environment:
 
 ```powershell
-env:PATH = env:PATH -replace '"', ''; conda activate vehicle
+$env:PATH = $env:PATH -replace '"', ''; conda activate vehicle
+
 ```
 
 ### Step 2: Inject LocalStack Session Variables
@@ -38,6 +39,8 @@ Configure your developer authorization token and redirect variables for this spe
 Spin up the LocalStack Pro engine background container directly via Docker to handle local cloud mocking:
 
 ```powershell
+if already localstack-main created run -  docker start localstack-main
+else
 docker run -d --name localstack-main -p 4566:4566 -p 4510-4559:4510-4559 -e LOCALSTACK_AUTH_TOKEN="ls-mawO6638-LOWI-gIKu-TEZi-9312daLa04da" localstack/localstack-pro:latest
 ```
 
@@ -53,10 +56,15 @@ python -c "import boto3; s3 = boto3.client('s3', endpoint_url='http://localhost:
 
 ### Step 5: Boot Up Your FastAPI Web Server Application
 
+set these temporary dummy environment variables in your terminal session before running your application.
+$env:AWS_ACCESS_KEY_ID="test"
+$env:AWS_SECRET_ACCESS_KEY="test"
+$env:AWS_DEFAULT_REGION="us-east-1"
+
 Initialize your interactive Python server web gateway nodes:
 
 ```powershell
-python app.py
+python app2.py
 ```
 
 ### Step 6: Test Inferences Live on the Web Dashboard
