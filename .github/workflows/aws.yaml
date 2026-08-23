@@ -8,17 +8,6 @@ jobs:
   Continuous-Integration:
     runs-on: ubuntu-latest
 
-    services:
-      # Spin up LocalStack inside the runner environment for pipeline validation
-      localstack:
-        image: localstack/localstack:latest
-        ports:
-          - 4566:4566
-          - 4510-4559:4510-4559
-        env:
-          SERVICES: s3
-          AWS_DEFAULT_REGION: us-east-1
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -30,26 +19,33 @@ jobs:
           cache: "pip"
 
       - name: Configure Testing Environment Variables
-        # Hardcoded testing region directly so it won't crash on an empty secret
         run: |
           echo "AWS_ACCESS_KEY_ID=test" >> $GITHUB_ENV
           echo "AWS_SECRET_ACCESS_KEY=test" >> $GITHUB_ENV
           echo "AWS_DEFAULT_REGION=us-east-1" >> $GITHUB_ENV
           echo "IS_LOCAL=True" >> $GITHUB_ENV
-          echo "LOCALSTACK_ENDPOINT_URL=http://localhost:4566" >> $GITHUB_ENV
+          echo "LOCALSTACK_ENDPOINT_URL=http://127.0.0.1:4566" >> $GITHUB_ENV
 
       - name: Install Project Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install localstack
+
+      - name: Start Mock LocalStack Service
+        run: |
+          # Start localstack using docker detached mode in pipeline memory background
+          docker run -d --name localstack_testing -p 4566:4566 -p 4510-4559:4510-4559 -e SERVICES=s3 localstack/localstack:latest
+
+          # Give localstack a few seconds to boot up safely
+          sleep 10
 
       - name: Seed S3 Testing Infrastructure
-        # This builds the exact mock cloud state your code looks for during startup
         run: |
           python -c "
           import boto3
           import os
-          s3 = boto3.client('s3', endpoint_url='http://localhost:4566')
+          s3 = boto3.client('s3', endpoint_url='http://127.0.0.1:4566')
           s3.create_bucket(Bucket='my-model-mlopsproj')
           os.makedirs('artifact/08_23_2026_00_20_20/model_trainer/trained_model', exist_ok=True)
           with open('artifact/08_23_2026_00_20_20/model_trainer/trained_model/model.pkl', 'wb') as f:
@@ -65,16 +61,5 @@ jobs:
       - name: Build Application Docker Image Locally
         id: build-image
         run: |
-          # Build your app image locally inside the runner to confirm the Dockerfile works perfectly
           docker build -t vehicle-app-mock:latest .  
           echo "Docker image built successfully without cloud dependency!"
-
-# Real deployment blocks are temporarily commented out to give you a clean successful run today.
-#
-#  Continuous-Deployment:
-#    needs: Continuous-Integration
-#    runs-on: self-hosted
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#      ...
