@@ -254,26 +254,41 @@ Create Prediction Pipeline and set up app.py for API integration.
 Step 15: Static and Template Directory
 Add static and template directories for web UI.
 🔄 CI/CD Setup with Docker, GitHub Actions, and AWS
-Step 16: Docker and GitHub Actions
-Create Dockerfile and .dockerignore.
-Set up GitHub Actions with AWS authentication by creating secrets in GitHub for:
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
-AWS_DEFAULT_REGION
-ECR_REPO
-Step 17: AWS EC2 and ECR
-Set up an EC2 instance for deployment.
-Install Docker on the EC2 machine.
-Connect EC2 as a self-hosted runner on GitHub.
-Step 18: Final Steps
-Open the 5080 port on the EC2 instance.
-Access the deployed app by visiting http://<public_ip>:5080.
+Step 15: Static and Template Directory
+Add static and template directories for web UI.
+
+🔄 CI/CD Setup with Docker, GitHub Actions, and LocalStack Emulation
+
+Step 16: Docker and Pipeline Setup
+
+- Create an optimized, lightweight multi-platform Linux Dockerfile using a `python:3.10-slim-bookworm` base.
+- Configure a `.dockerignore` file to exclude local virtual environments (`vehicle/`), caching directories (`__pycache__/`), and local logs to keep the image context clean.
+- Set up a flat GitHub Actions workflow (`.github/workflows/aws.yaml`) configured to bypass external cloud dependencies by routing all core AWS operations through an emulated LocalStack container [LS1].
+
+Step 17: LocalStack Cloud Simulation & Validation
+
+- The GitHub Actions runner boots a local Mock LocalStack Service (v4.4.0) to emulate cloud S3 systems for free without live billing accounts [LS1].
+- Automatically executes an isolated multi-pass environment dependency setup (`--no-deps`) to lock down target machine learning model weights (`scikit-learn==1.7.2`, `pandas==2.3.3`).
+- Launches an automated `seed_s3.py` script inside the runner to test bucket allocation and model artifact registration against `http://127.0.0.1:4566`.
+- Compiles the final verified application image container layout automatically on every push.
+
+Step 18: Live Cloud Deployment Blueprint (Production Phase)
+When ready to switch from local mock validation to a live AWS cloud environment:
+
+- Create an IAM User (`usvisa-user`) and configure repository secrets under GitHub Settings for `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, and `ECR_REPO` [LS1].
+- Spin up an AWS EC2 Ubuntu instance, install Docker, and register the system as a GitHub Self-Hosted Runner.
+- Update your security inbound rules on the AWS console to open Custom TCP Port `5000` (matching your web application's routing framework).
+- Access your production deployment globally by visiting `http://<YOUR_EC2_PUBLIC_IP>:5000`.
+
 🛠️ Additional Resources
 Crash Course on setup.py and pyproject.toml: See crashcourse.txt for details.
 GitHub Secrets: Manage secrets for secure CI/CD pipelines.
+
 🎯 Project Workflow Summary
 Data Ingestion ➔ Data Validation ➔ Data Transformation
 Model Training ➔ Model Evaluation ➔ Model Deployment
-CI/CD Automation with GitHub Actions, Docker, AWS EC2, and ECR
+CI/CD Automation with GitHub Actions, Docker, LocalStack Emulation, and AWS Architecture Blueprint [LS1]
 💬 Connect
 If you found this project helpful or have any questions, feel free to reach out!
+
+# in this code we have change our ci/cdw
