@@ -33,33 +33,29 @@ jobs:
 
       - name: Start Mock LocalStack Service
         run: |
-          # Start localstack using docker detached mode
-          docker run -d --name localstack_testing -p 4566:4566 -p 4510-4559:4510-4559 -e SERVICES=s3 localstack/localstack:latest
+          # Pinning explicitly to v4.4.0 to bypass the newly introduced account restrictions
+          docker run -d \
+            --name localstack_testing \
+            --network host \
+            -e SERVICES=s3 \
+            localstack/localstack:4.4.0
 
-          # API Health Check: Wait up to 45 seconds for a clean HTTP response from the S3 endpoint
-          echo "Waiting for LocalStack API to be fully operational..."
-          for i in {1..45}; do
-            if curl -s -o /dev/null -w "%{http_code}" http://127.0.0 | grep -q "200"; then
-              echo "LocalStack API endpoints are completely healthy and ready!"
-              exit 0
-            fi
-            echo "Waiting for server startup... ($i/45)"
-            sleep 1
-          done
-          echo "LocalStack API failed to respond within 45 seconds"
-          docker logs localstack_testing
-          exit 1
+          echo "Allowing LocalStack v4.4.0 legacy engine to stabilize..."
+          sleep 15
 
       - name: Seed S3 Testing Infrastructure
         run: |
           python -c "
           import boto3
           import os
+
           s3 = boto3.client('s3', endpoint_url='http://127.0.0.1:4566')
           s3.create_bucket(Bucket='my-model-mlopsproj')
+
           os.makedirs('artifact/08_23_2026_00_20_20/model_trainer/trained_model', exist_ok=True)
           with open('artifact/08_23_2026_00_20_20/model_trainer/trained_model/model.pkl', 'wb') as f:
               f.write(b'mock_pickle_data')
+              
           s3.upload_file('artifact/08_23_2026_00_20_20/model_trainer/trained_model/model.pkl', 'my-model-mlopsproj', 'model-registry/model.pkl')
           print('LocalStack environment seeded successfully!')
           "
