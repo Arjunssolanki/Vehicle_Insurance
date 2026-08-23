@@ -1,16 +1,10 @@
-ipykernel
-pandas
-numpy
-matplotlib
-plotly
-seaborn
-scikit-learn
-pymongo
-from_root
+pandas==2.3.3
+numpy==2.2.6
+scikit-learn==1.7.2
+boto3==1.43.78
 dill
 certifi
 pyyaml
-boto3
 mypy-boto3-s3
 botocore
 fastapi
@@ -18,4 +12,5 @@ python-multipart
 uvicorn
 jinja2
 imbalanced-learn
--e . 
+pymongo>=4.0.0
+pytest>=7.0.0
